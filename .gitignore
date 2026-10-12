@@ -12,3 +12,12 @@ wheels/
 # Environment files
 .env
 *.db
+*.db-shm
+*.db-wal
+
+# Local document storage
+storage/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

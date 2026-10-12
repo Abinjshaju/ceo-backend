@@ -1,0 +1,72 @@
+# The whole app: Postgres, a one-off migration, the web app (API + frontend), and the
+# background worker. Secrets come from .env; see .env.example.
+#
+#   docker compose up --build -d --wait      then open http://localhost:8080
+#   docker compose up -d --wait db           only the database, for local development
+
+x-app: &app
+  image: ceo-workspace:latest
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://ceo:ceo@db:5432/ceo
+    STORAGE_DIR: /data/storage
+    PUBLIC_BASE_URL: ""
+    JOBS_INLINE: "false"
+  volumes:
+    - storage:/data/storage
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ceo
+      POSTGRES_PASSWORD: ceo
+      POSTGRES_DB: ceo
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ceo -d ceo"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    build: .
+    command: ["ceo-backend", "migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    ports:
+      - "127.0.0.1:8080:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["ceo-backend", "worker"]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  storage:
