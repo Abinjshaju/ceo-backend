@@ -25,13 +25,13 @@ cp .env.example .env    # set GOOGLE_API_KEY, AUTH_JWT_SECRET and STORAGE_SIGNIN
 docker compose up --build -d --wait
 ```
 
-Open http://localhost:8080 and create an account.
+Open http://localhost:8774 and create an account.
 
 | Service | What it does |
 |---|---|
 | `db` | Postgres 17 with pgvector, data in the `pgdata` volume |
 | `migrate` | Applies database migrations, then exits |
-| `app` | API under `/api` and the built frontend at `/`, on port 8080 |
+| `app` | API under `/api` and the built frontend at `/`, on port 8774 |
 | `worker` | Background jobs: document processing, memory, summaries, briefs |
 
 Uploaded documents live in the `storage` volume, shared by `app` and `worker`. The containers run as a non-root user with a read-only filesystem.
@@ -72,9 +72,9 @@ For scripts and API testing, `uv run ceo-backend dev-token --email you@example.c
 All endpoints are under `/api`; interactive docs are at `/docs`.
 
 ```sh
-TOKEN=$(curl -s localhost:8080/api/auth/login -H 'content-type: application/json' \
+TOKEN=$(curl -s localhost:8774/api/auth/login -H 'content-type: application/json' \
   -d '{"email":"you@example.com","password":"your-password"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
-curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/api/me
+curl -s -H "Authorization: Bearer $TOKEN" localhost:8774/api/me
 ```
 
 `client_message_id` on chat messages makes sends idempotent: retrying with the same id returns the stored answer instead of running the model again.

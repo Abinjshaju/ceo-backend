@@ -1,7 +1,7 @@
 # The whole app: Postgres, a one-off migration, the web app (API + frontend), and the
 # background worker. Secrets come from .env; see .env.example.
 #
-#   docker compose up --build -d --wait      then open http://localhost:8080
+#   docker compose up --build -d --wait      then open http://localhost:8774
 #   docker compose up -d --wait db           only the database, for local development
 
 x-app: &app
@@ -53,7 +53,7 @@ services:
   app:
     <<: *app
     ports:
-      - "127.0.0.1:8080:8000"
+      - "127.0.0.1:8774:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
