@@ -1,14 +1,19 @@
 # The whole app: Postgres, a one-off migration, the web app (API + frontend), and the
-# background worker. Secrets come from .env; see .env.example.
+# background worker. Secrets come from .env (or Dokploy's environment tab); see .env.example.
 #
-#   docker compose up --build -d --wait      then open http://localhost:8774
-#   docker compose up -d --wait db           only the database, for local development
+# Dokploy: deploy as a Docker Compose app and route a domain to service `app`, port 8000.
+# No host ports are published; Dokploy's proxy reaches `app` over the internal network.
+#
+# Local (optional): docker compose up --build -d --wait, then publish a port with a
+# compose.override.yaml, or run `docker compose up -d --wait db` for the database only.
 
 x-app: &app
-  image: ceo-workspace:latest
-  env_file: .env
+  build: .
+  env_file:
+    - path: .env
+      required: false
   environment:
-    DATABASE_URL: postgresql+psycopg://ceo:ceo@db:5432/ceo
+    DATABASE_URL: postgresql+psycopg://ceo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/ceo
     STORAGE_DIR: /data/storage
     PUBLIC_BASE_URL: ""
     JOBS_INLINE: "false"
@@ -22,16 +27,19 @@ x-app: &app
   security_opt:
     - no-new-privileges:true
   restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
 
 services:
   db:
     image: pgvector/pgvector:pg17
     environment:
       POSTGRES_USER: ceo
-      POSTGRES_PASSWORD: ceo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: ceo
-    ports:
-      - "127.0.0.1:55432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -43,7 +51,6 @@ services:
 
   migrate:
     <<: *app
-    build: .
     command: ["ceo-backend", "migrate"]
     restart: "no"
     depends_on:
@@ -52,8 +59,8 @@ services:
 
   app:
     <<: *app
-    ports:
-      - "127.0.0.1:8774:8000"
+    expose:
+      - "8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
