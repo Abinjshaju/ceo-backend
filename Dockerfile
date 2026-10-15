@@ -35,6 +35,7 @@ COPY --from=backend /opt/venv /opt/venv
 WORKDIR /app
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --from=frontend /frontend/dist ./frontend/dist
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
@@ -45,4 +46,5 @@ EXPOSE 8000
 VOLUME ["/data/storage"]
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["ceo-backend", "serve", "--host", "0.0.0.0", "--port", "8000"]
