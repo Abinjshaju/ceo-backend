@@ -48,6 +48,7 @@ PROGRESS_LABELS = {
     "finalize_company_profile": "Finishing the company profile",
     "finalize_project": "Creating the project",
     "suggest_answers": "Preparing suggestions",
+    "search_market_reports": "Checking market research databases",
 }
 
 
@@ -62,6 +63,7 @@ class RunState:
     components: list[dict] = field(default_factory=list)
     artifact_ids: list[uuid.UUID] = field(default_factory=list)
     suggested_actions: list[dict] = field(default_factory=list)
+    document_picker: dict | None = None
     project_version: int | None = None
     deadline: float = 0.0
 

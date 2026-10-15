@@ -246,3 +246,27 @@ def test_download_urls_are_signed_and_expire(client, auth, project_id, run_jobs,
 
     expired = services.storage.sign({"op": "get", "k": "x", "exp": 1})
     assert client.get(f"/storage/objects/{expired}").status_code == 401
+
+
+def test_market_reports_list_samples_and_skip_the_oversized_actual_file(client, auth, project_id):
+    body = {"report_ids": ["frost-fintech-2025", "frost-top-50-2024", "not-a-report"]}
+    result = client.post(f"/projects/{project_id}/market-reports", json=body, headers=auth()).json()
+
+    assert [r["id"] for r in result["added"]] == ["frost-fintech-2025"]
+    reasons = {r["id"]: r["reason"] for r in result["skipped"]}
+    assert "upload limit" in reasons["frost-top-50-2024"]
+    assert reasons["not-a-report"] == "Unknown report."
+    listed = [d for d in result["documents"] if d["status"] == "listed"]
+    assert [d["filename"] for d in listed] == ["Sample: fintech and payments market.pdf"]
+    assert not any(d["searchable"] for d in listed)
+
+    again = client.post(f"/projects/{project_id}/market-reports", json=body, headers=auth()).json()
+    assert again["added"] == [] and "Already in this project." in {r["reason"] for r in again["skipped"]}
+
+
+def test_market_report_catalog_marks_added_reports(client, auth, project_id):
+    client.post(f"/projects/{project_id}/market-reports", json={"report_ids": ["frost-supply-2025"]}, headers=auth())
+    reports = client.get(f"/projects/{project_id}/market-reports", headers=auth()).json()["reports"]
+    added = {r["id"]: r["added"] for r in reports}
+    assert added["frost-supply-2025"] is True and added["frost-digital-2025"] is False
+    assert {r["provider"] for r in reports} == {"Frost & Sullivan"}

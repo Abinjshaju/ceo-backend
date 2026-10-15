@@ -26,6 +26,8 @@ class Storage(Protocol):
 
     def read(self, key: str) -> bytes: ...
 
+    def write(self, key: str, data: bytes) -> None: ...
+
     def delete(self, key: str) -> None: ...
 
 
@@ -158,6 +160,9 @@ class S3Storage:
 
     def read(self, key: str) -> bytes:
         return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+
+    def write(self, key: str, data: bytes) -> None:
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)

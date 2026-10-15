@@ -6,6 +6,7 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/index.html frontend/vite.config.js ./
+COPY frontend/public ./public
 COPY frontend/src ./src
 RUN npm run build
 
@@ -35,11 +36,13 @@ COPY --from=backend /opt/venv /opt/venv
 WORKDIR /app
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY demo ./demo
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --from=frontend /frontend/dist ./frontend/dist
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     FRONTEND_DIST=/app/frontend/dist \
+    MARKET_REPORTS_DIR=/app/demo \
     STORAGE_DIR=/data/storage
 USER app
 EXPOSE 8000

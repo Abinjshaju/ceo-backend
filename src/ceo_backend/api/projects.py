@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ceo_backend.agents.project import PROMPT_VERSION, build_project_turn
 from ceo_backend.api.deps import current_user, get_services, get_session, schedule_jobs, stream_turn
-from ceo_backend.api.schemas import ArtifactEventIn, ChatMessageIn, FinalizeIn, ProjectPatch
+from ceo_backend.api.schemas import ArtifactEventIn, ChatMessageIn, FinalizeIn, MarketReportsIn, ProjectPatch
 from ceo_backend.auth import require_membership, require_project
 from ceo_backend.errors import Conflict, NotFound
 from ceo_backend.models import AgentRun, Document, DocumentVersion, Project, ProjectSummary, ToolCall, User
@@ -21,6 +21,7 @@ from ceo_backend.services.conversations import (
 )
 from ceo_backend.services.documents import document_view, get_document, list_documents
 from ceo_backend.services.intake import finalize_project
+from ceo_backend.services.market_reports import catalog, import_reports
 from ceo_backend.services.projects import (
     FactChange,
     apply_fact_changes,
@@ -123,6 +124,23 @@ def finalize(project_id: uuid.UUID, body: FinalizeIn, background: BackgroundTask
     result = finalize_project(session, project.id, body.idempotency_key)
     schedule_jobs(background, services)
     return result
+
+
+@router.get("/projects/{project_id}/market-reports")
+def market_report_catalog(project_id: uuid.UUID, user: User = Depends(current_user),
+                          session: Session = Depends(get_session)) -> dict:
+    return {"reports": catalog(session, require_project(session, user, project_id))}
+
+
+@router.post("/projects/{project_id}/market-reports")
+def add_market_reports(project_id: uuid.UUID, body: MarketReportsIn, background: BackgroundTasks,
+                       user: User = Depends(current_user), session: Session = Depends(get_session),
+                       services: Services = Depends(get_services)) -> dict:
+    project = require_project(session, user, project_id)
+    result = import_reports(services, session, project, user.id, body.report_ids)
+    schedule_jobs(background, services)
+    documents = [document_view(session, d) for d in list_documents(session, project.workspace_id, project.id)]
+    return {**result, "documents": documents}
 
 
 @router.get("/projects/{project_id}/messages")

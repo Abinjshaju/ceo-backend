@@ -3,6 +3,7 @@ import { ArrowUp, Check, Download, FileSpreadsheet, FileText, Image as ImageIcon
 import { api, checkUpload, newMessageId, postAudio, streamMessage, uploadDocument, SUPPORTED_UPLOADS } from './api.js';
 import { ArtifactsView, briefArtifact, toArtifact } from './artifacts.jsx';
 import { AVATAR_DEFAULTS, AvatarDirector, RobotAvatar, expressesThanks, failureReaction, stageReaction } from './avatar.jsx';
+import { DocumentPicker } from './document-picker.jsx';
 import { MessageText } from './content.jsx';
 import { Speaker } from './speech.js';
 import { VoiceListener, microphoneProblem } from './voice.js';
@@ -183,6 +184,7 @@ export function AIChatWidget({ open, setOpen, canClose, onLogout, target, worksp
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  const [documentPicker, setDocumentPicker] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [ownAnswer, setOwnAnswer] = useState('');
   const [inputNotice, setInputNotice] = useState('');
@@ -213,6 +215,7 @@ export function AIChatWidget({ open, setOpen, canClose, onLogout, target, worksp
     let cancelled = false;
     setLoading(true);
     setSuggestions([]);
+    setDocumentPicker(null);
     setInputNotice('');
     const carried = carryOver.current;
     carryOver.current = null;
@@ -376,6 +379,22 @@ export function AIChatWidget({ open, setOpen, canClose, onLogout, target, worksp
   };
 
   // `voice`: a transcribed sentence from a voice conversation; it leaves the typed draft and attachments alone.
+  // Imports the reports picked in the document picker, then tells the assistant what was added.
+  const addReports = async (reportIds) => {
+    setDocumentPicker(null);
+    try {
+      const result = await api(`/projects/${conversation.projectId}/market-reports`, { method: 'POST', body: { report_ids: reportIds } });
+      const added = result.added.map((report) => report.title);
+      const skipped = result.skipped.map((report) => `${report.title} (${report.reason})`);
+      const parts = [added.length ? `Please add these reports to the project: ${added.join('; ')}.` : 'None of the selected reports could be added.'];
+      if (skipped.length) parts.push(`Not added: ${skipped.join('; ')}.`);
+      setInputNotice(skipped.join(' · '));
+      await send(parts.join(' '));
+    } catch (failure) {
+      setInputNotice(failure.message);
+    }
+  };
+
   const send = async (value = draft, retry = null, { voice = false } = {}) => {
     const text = value.trim();
     const files = retry || voice ? [] : attachments;
@@ -394,6 +413,7 @@ export function AIChatWidget({ open, setOpen, canClose, onLogout, target, worksp
       setAttachments([]);
     }
     setSuggestions([]);
+    setDocumentPicker(null);
     setInputNotice('');
     setBusy(true);
     setThinking(true);
@@ -436,6 +456,7 @@ export function AIChatWidget({ open, setOpen, canClose, onLogout, target, worksp
           setCitations((current) => new Map([...current, ...(data.citations || []).map((citation) => [citation.ref, citation])]));
           updateMessage(pendingId, { id: data.message_id, pending: false, text: data.text, citations: data.citations || [] });
           setSuggestions(data.suggested_actions || []);
+          setDocumentPicker(data.document_picker || null);
           if (voiceOnRef.current && data.message_id) speaker.speak(data.message_id);
           const intake = data.onboarding?.intake;
           if (target.kind === 'company' && data.onboarding?.status === 'completed') {
@@ -557,6 +578,7 @@ export function AIChatWidget({ open, setOpen, canClose, onLogout, target, worksp
                 </div>
               </div>}
               {showProjectSuggestions && <div className="suggestions" aria-label="Suggested questions">{PROJECT_SUGGESTIONS.map((suggestion) => <button key={suggestion} className="suggestion" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>}
+              {documentPicker && !busy && conversation.projectId && <DocumentPicker picker={documentPicker} busy={busy} onAdd={(ids) => addReports(ids)}/>}
               {suggestions.length > 0 && !busy && (onboarding ? <div className="choice-card" aria-live="polite">
                 <p className="choice-card-title">Choose an answer or write your own</p>
                 <div className="choice-options">{suggestions.map((option, index) => <button type="button" key={option.label} className="choice-option" onClick={() => send(option.label)}><span>{index + 1}</span>{option.label}</button>)}</div>
