@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Archive, ArrowUpRight, BriefcaseBusiness, Check, ChevronDown, ChevronLeft, CircleHelp, Compass, FolderKanban, LogOut, MoreHorizontal, Paperclip, Plus, RefreshCw, Search, Settings, Target, Trash2, TrendingUp, User, X } from 'lucide-react';
+import { Archive, ArrowUpRight, BriefcaseBusiness, Check, ChevronDown, ChevronLeft, CircleHelp, Compass, Download, FolderKanban, LogOut, MoreHorizontal, Paperclip, Plus, RefreshCw, Search, Settings, Target, Trash2, TrendingUp, User, X } from 'lucide-react';
 import { api, checkUpload, downloadDocument, getToken, setToken, setUnauthorizedHandler, uploadDocument, SUPPORTED_UPLOADS } from './api.js';
 import { AssessmentArtifact } from './artifacts.jsx';
 import { AIChatWidget, AttachmentCard } from './assistant.jsx';
 import { ReportCatalogDialog } from './document-picker.jsx';
+import { ReportExportDialog } from './report-builder.jsx';
 import { AvatarStudio, readAvatarSettings, saveAvatarSettings } from './avatar.jsx';
 import { FIELD_LABELS } from './content.jsx';
 
@@ -236,6 +237,7 @@ function ProjectDetail({ projectId, version, onChanged }) {
   const [uploading, setUploading] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const fileInput = useRef(null);
   const load = useCallback(() => api(`/projects/${projectId}`).then(setDetail).catch((failure) => setNotice(failure.message)), [projectId]);
   useEffect(() => { load(); }, [load, version]);
@@ -282,13 +284,15 @@ function ProjectDetail({ projectId, version, onChanged }) {
     }
   };
   const brief = detail.latest_assessment;
+  const exportScope = [{ id: projectId, name: detail.name, status: detail.status }];
   const scope = (doc) => (doc.scope === 'company' ? `/workspaces/${detail.workspace_id || ''}` : `/projects/${projectId}`);
 
   return <section className="project-detail">
+    {exportOpen && <ReportExportDialog projects={exportScope} title={`Project report: ${detail.name}`} workspaceId={detail.workspace_id} onClose={() => setExportOpen(false)}/>}
     {catalogOpen && <ReportCatalogDialog projectId={projectId} onClose={() => setCatalogOpen(false)} onAdded={() => { load(); onChanged(); }}/>}
     <header className="detail-head">
       <div className="detail-title"><p className="eyebrow">{detail.status === 'draft' ? 'PROJECT · INTAKE IN PROGRESS' : detail.status === 'archived' ? 'PROJECT · ARCHIVED' : 'PROJECT'}</p><h1>{detail.name}</h1></div>
-      <span/>
+      <button type="button" className="report-add" onClick={() => setExportOpen(true)}><Download size={13}/> Export report</button>
     </header>
     <div className="detail-grid">
       <div className="detail-main">
@@ -347,6 +351,7 @@ function Dashboard({ me, onLogout }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [reportBuilderOpen, setReportBuilderOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [projectView, setProjectView] = useState('active');
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -387,7 +392,7 @@ function Dashboard({ me, onLogout }) {
     });
   }, [refresh]);
 
-  const allProjects = [...projects, ...archived];
+  const allProjects = useMemo(() => [...projects, ...archived], [projects, archived]);
   const selectedProject = allProjects.find((project) => project.id === selectedProjectId) || null;
   const activeProjects = projects.filter((project) => project.status === 'active');
   const setupComplete = company?.status === 'complete' && activeProjects.length > 0;
@@ -490,13 +495,14 @@ function Dashboard({ me, onLogout }) {
         )}
 
         <section className="projects-section">
-          <div className="section-heading"><div><h2>{section === 'Projects' ? 'All projects' : 'Top-ranked projects'}</h2><p>{section === 'Projects' ? `${projects.length} current · ${archived.length} archived` : 'Your strongest opportunities, ranked by score'}</p></div><div className="section-actions">{section === 'Projects' && <div className="segmented" role="tablist" aria-label="Project status"><button type="button" role="tab" aria-selected={projectView === 'active'} className={projectView === 'active' ? 'active' : ''} onClick={() => setProjectView('active')}>Current <span>{projects.length}</span></button><button type="button" role="tab" aria-selected={projectView === 'archived'} className={projectView === 'archived' ? 'active' : ''} onClick={() => setProjectView('archived')}>Archived <span>{archived.length}</span></button></div>}<label className="search-box"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects"/></label>{section === 'Explore' && <button className="text-link" onClick={() => setSection('Projects')}>View all <ArrowUpRight size={14}/></button>}</div></div>
+          <div className="section-heading"><div><h2>{section === 'Projects' ? 'All projects' : 'Top-ranked projects'}</h2><p>{section === 'Projects' ? `${projects.length} current · ${archived.length} archived` : 'Your strongest opportunities, ranked by score'}</p></div><div className="section-actions">{section === 'Projects' && <div className="segmented" role="tablist" aria-label="Project status"><button type="button" role="tab" aria-selected={projectView === 'active'} className={projectView === 'active' ? 'active' : ''} onClick={() => setProjectView('active')}>Current <span>{projects.length}</span></button><button type="button" role="tab" aria-selected={projectView === 'archived'} className={projectView === 'archived' ? 'active' : ''} onClick={() => setProjectView('archived')}>Archived <span>{archived.length}</span></button></div>}{section === 'Projects' && <button type="button" className="text-link" onClick={() => setReportBuilderOpen(true)} disabled={!allProjects.length}><Download size={13}/> Export</button>}<label className="search-box"><Search size={16}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects"/></label>{section === 'Explore' && <button className="text-link" onClick={() => setSection('Projects')}>View all <ArrowUpRight size={14}/></button>}</div></div>
           <ProjectTable projects={section === 'Projects' ? visibleProjects : exploreProjects.slice(0, 5)} compact={section === 'Explore'} onSelect={selectProject} actions={section === 'Projects'} onArchive={toggleArchive} onDelete={setPendingDelete}/>
         </section>
         </>)}
         <footer className="dashboard-footer"><span>Workspace overview</span><span>Scores are indicative estimates from each project’s decision brief</span></footer>
       </div>
     </main>
+    {reportBuilderOpen && <ReportExportDialog projects={allProjects} title="Project portfolio report" workspaceId={workspaceId} onClose={() => setReportBuilderOpen(false)}/>}
     {pendingDelete && <ConfirmDialog title="Delete project?" message={`“${pendingDelete.name}” and its documents, conversations and history will be permanently deleted.`} confirmLabel="Delete" error={pendingDelete.error} onConfirm={() => deleteProject(pendingDelete)} onCancel={() => setPendingDelete(null)}/>}
     {showSettings && <SettingsDialog language={language} onLanguage={setLanguage} avatarSettings={avatarSettings} onAvatarSettings={setAvatarSettings} workspaceId={workspaceId} company={company} projects={allProjects} onClose={() => setShowSettings(false)}/>}
     {showOnboarding && <CompanySetupDialog workspaceId={workspaceId} company={company} onClose={() => setShowOnboarding(false)} onSaved={() => refresh().then((data) => { if (data && !data.projects.some((p) => p.status === 'active')) { setMode({ kind: 'intake', requestId: Date.now() }); setAssistantOpen(true); } })}/>}
