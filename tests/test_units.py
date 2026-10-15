@@ -92,3 +92,14 @@ def test_rrf_rewards_agreement():
 def test_unknown_counts_only_where_allowed():
     values = {name: "x" for name in COMPANY_FIELDS} | {"employee_count": "unknown", "name": "unknown"}
     assert missing_fields(values, COMPANY_FIELDS) == ["name"]
+
+
+def test_market_report_search_marks_only_the_demo_file_as_actual():
+    from ceo_backend.services.market_reports import REPORTS, search_reports
+
+    assert [r.id for r in REPORTS if r.actual] == ["frost-top-50-2024"]
+    assert all(r.provider == "Frost & Sullivan" for r in REPORTS)
+    hits = search_reports("fintech payments banking")
+    assert hits and all(not r.actual for r in hits)
+    assert any(r.actual for r in search_reports("top 50 growth companies"))
+    assert search_reports("zzz unrelated words") == []

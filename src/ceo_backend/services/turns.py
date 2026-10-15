@@ -137,5 +137,6 @@ def run_turn(services, session: Session, user: User, spec: TurnSpec, client_mess
     log.info("run %s completed in %.1fs (%s in / %s out tokens)", run.id, time.monotonic() - started,
              run.input_tokens, run.output_tokens)
     payload = response_payload(reply, spec.extra(session))
+    payload["document_picker"] = state.document_picker
     state.send("completed", payload)
     return payload

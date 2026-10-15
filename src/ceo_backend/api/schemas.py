@@ -38,6 +38,10 @@ class ProjectPatch(BaseModel):
     status: Literal["active", "archived"] | None = None
 
 
+class MarketReportsIn(BaseModel):
+    report_ids: list[str] = Field(min_length=1, max_length=20)
+
+
 class FinalizeIn(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=100)
 

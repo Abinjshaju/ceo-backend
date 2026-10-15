@@ -20,6 +20,7 @@ from ceo_backend.services.company import complete_profile, get_profile
 from ceo_backend.services.intake import company_intake_state, project_intake_state
 from ceo_backend.services.intake import finalize_project as finalize_project_service
 from ceo_backend.services.projects import FactChange, apply_fact_changes
+from ceo_backend.services.market_reports import report_view, search_reports
 from ceo_backend.services.research import research_company
 
 PROMPT_VERSION = "onboarding-1"
@@ -68,6 +69,7 @@ Fields:
 {rules}
 - Keep currency and units with investment and impact values (for example "₹20 lakh" or "$1.2M ARR by Q4").
 - Ask whether there are supporting documents. The user can upload files in the app or answer "no documents"; record the answer with save_project_fields(documents=...). Uploaded files may still be processing: never describe them as analyzed.
+- At the documents step, once the project's industry or objective is known, say exactly "I will check market research firm databases to find suitable documents for this project", then call search_market_reports with a short query. The user then selects reports in a picker shown below your reply: say briefly that they can pick any they want there, and do not list the reports in text. Only reports marked actual can be analyzed. Never describe a sample listing as a real document or quote findings from it.
 - When nothing required is missing, summarize the captured facts and any unknowns, and ask the user to confirm. After they confirm, call finalize_project and tell them a decision brief is being prepared.
 
 Company context:
@@ -212,13 +214,25 @@ def make_project_tools(state: RunState, onboarding: OnboardingSession, user_mess
         return project_intake_state(session, onboarding)
 
     @tool
+    def search_market_reports(query: str, limit: int = 6) -> dict:
+        """Search Frost & Sullivan reports that suit this project and show them to the user as a
+        picker they select from. Pass a short query built from the project's industry, objective,
+        and customers. Results marked actual have a real file that can be imported; the rest are
+        sample listings."""
+        hits = search_reports(query, max(1, min(limit, 10)))
+        views = [report_view(r) for r in hits]
+        state.document_picker = {"title": "Market research reports", "reports": views}
+        return {"results": views, "count": len(views),
+                "note": "The user sees these in a picker and selects which to add. Do not list them in text."}
+
+    @tool
     def finalize_project() -> dict:
         """Create the project from the captured details. Call only after the user confirms the summary."""
         result = finalize_project_service(session, project_id, f"onboarding:{onboarding.id}", onboarding)
         state.context_updated(project_status="active")
         return result
 
-    return [get_intake_state, save_project_fields, finalize_project, _suggest_tool(state)]
+    return [get_intake_state, save_project_fields, search_market_reports, finalize_project, _suggest_tool(state)]
 
 
 

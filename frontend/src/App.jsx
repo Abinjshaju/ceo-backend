@@ -4,12 +4,13 @@ import { Archive, ArrowUpRight, BriefcaseBusiness, Check, ChevronDown, ChevronLe
 import { api, checkUpload, downloadDocument, getToken, setToken, setUnauthorizedHandler, uploadDocument, SUPPORTED_UPLOADS } from './api.js';
 import { AssessmentArtifact } from './artifacts.jsx';
 import { AIChatWidget, AttachmentCard } from './assistant.jsx';
+import { ReportCatalogDialog } from './document-picker.jsx';
 import { AvatarStudio, readAvatarSettings, saveAvatarSettings } from './avatar.jsx';
 import { FIELD_LABELS } from './content.jsx';
 
 const STAGES = [['early', 'Early stage'], ['growth', 'Growth'], ['established', 'Established'], ['enterprise', 'Enterprise']];
 const COLORS = ['violet', 'blue', 'orange', 'green', 'pink', 'cyan'];
-const DOCUMENT_STATUS = { uploading: 'Uploading', processing: 'Processing…', ready: 'Ready', failed: 'Failed' };
+const DOCUMENT_STATUS = { uploading: 'Uploading', processing: 'Processing…', ready: 'Ready', failed: 'Failed', listed: 'Listed, not analyzed' };
 
 function colorFor(id) {
   let hash = 0;
@@ -234,6 +235,7 @@ function ProjectDetail({ projectId, version, onChanged }) {
   const [briefBusy, setBriefBusy] = useState(false);
   const [uploading, setUploading] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const fileInput = useRef(null);
   const load = useCallback(() => api(`/projects/${projectId}`).then(setDetail).catch((failure) => setNotice(failure.message)), [projectId]);
   useEffect(() => { load(); }, [load, version]);
@@ -283,6 +285,7 @@ function ProjectDetail({ projectId, version, onChanged }) {
   const scope = (doc) => (doc.scope === 'company' ? `/workspaces/${detail.workspace_id || ''}` : `/projects/${projectId}`);
 
   return <section className="project-detail">
+    {catalogOpen && <ReportCatalogDialog projectId={projectId} onClose={() => setCatalogOpen(false)} onAdded={() => { load(); onChanged(); }}/>}
     <header className="detail-head">
       <div className="detail-title"><p className="eyebrow">{detail.status === 'draft' ? 'PROJECT · INTAKE IN PROGRESS' : detail.status === 'archived' ? 'PROJECT · ARCHIVED' : 'PROJECT'}</p><h1>{detail.name}</h1></div>
       <span/>
@@ -301,7 +304,10 @@ function ProjectDetail({ projectId, version, onChanged }) {
         <article className="detail-card">
           <div className="detail-card-head">
             <div><span className="card-eyebrow">FILES</span><h2>{detail.documents.length ? `${detail.documents.length} document${detail.documents.length > 1 ? 's' : ''}` : 'Documents'}</h2></div>
-            <button type="button" className="text-link" onClick={() => fileInput.current?.click()}><Paperclip size={13}/> Add files</button>
+            <div className="files-actions">
+              <button type="button" className="text-link" onClick={() => setCatalogOpen(true)}><BriefcaseBusiness size={13}/> Market research</button>
+              <button type="button" className="text-link" onClick={() => fileInput.current?.click()}><Paperclip size={13}/> Add files</button>
+            </div>
           </div>
           <input ref={fileInput} className="hidden-file-input" type="file" accept={SUPPORTED_UPLOADS.join(',')} multiple onChange={(event) => { const list = event.target.files; addFiles(list); event.target.value = ''; }}/>
           {detail.documents.length || uploading.length ? <div className="attachment-grid">
